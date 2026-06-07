@@ -22,7 +22,7 @@ There is **no inference server**. Work splits into three phases:
 So "server-side" applies only to the one-time **build** (phase 1) and to **static
 file hosting** (phase 2). The actual speech synthesis is 100% in the browser.
 
-```
+```text
 [once]   export (Python) ──▶ artifacts/onnx/*.onnx ──▶ put on any static host
 [runtime] browser fetches *.onnx ──▶ WebGPU generates audio   (zero server compute)
 ```
@@ -43,7 +43,7 @@ The full JS pipeline reproduces the official PyTorch runtime **bit-faithfully**
 
 ## Architecture
 
-```
+```text
 text ──tokenize(llm-jp)──▶ text_encoder.onnx ─┐
 ref.wav ─decode/normalize─▶ dacvae_encoder.onnx ─▶ speaker_encoder.onnx ─┤
                                                   duration.onnx ─▶ seqLen │
@@ -69,7 +69,7 @@ sequence lengths stay symbolic (required for variable text + batched CFG).
 
 ## Layout
 
-```
+```text
 export/      Python: ONNX export + parity + capture (depends on Irodori-TTS)
 runtime/     pipeline.mjs — environment-agnostic inference core
 web/         index.html + app.mjs (ORT-web WebGPU) + serve.py
@@ -126,9 +126,6 @@ node tests/full_verify.mjs    # full chain vs PyTorch capture (corr 1.0)
 `export/capture_sampler.py` (a seeded PyTorch reference run).
 
 ## Known limitations / TODO
-- **Reference normalization**: the browser uses peak-normalization; the native
-  runtime uses −16 LUFS (ITU-R BS.1770). Port K-weighting for exact voice-clone
-  fidelity.
 - **fp16**: `dacvae_{decoder,encoder}` convert cleanly; the dynamic-shape DiT hits
   an onnxconverter-common Cast error. fp32 is fine when served locally; fp16 (or
   int8) matters for remote/CDN hosting.

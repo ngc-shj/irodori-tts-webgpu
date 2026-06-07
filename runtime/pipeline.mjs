@@ -62,6 +62,70 @@ function gaussianNoise(n, seed) {
   return out;
 }
 
+// ---- ITU-R BS.1770 integrated loudness + normalization ----
+// Mirrors descript-audiotools (K-weighting IIR, 400ms/75% blocks, -70 abs gate,
+// -10 relative gate), used by Irodori's codec for reference loudness (-16 LUFS).
+const KW_48K = [
+  { b: [1.5351828863637502, -2.691804030199196, 1.198426263333146],
+    a: [1.0, -1.6906995865986896, 0.7325047060963897] },              // high-shelf
+  { b: [0.9950442970178917, -1.9900885940357833, 0.9950442970178917],
+    a: [1.0, -1.990076284018423, 0.9901009040531438] },               // high-pass
+];
+
+function lfilter(x, b, a) {
+  // Direct-form I, 2nd order, zero initial conditions (a0 == 1). fp64 throughout
+  // (the high-pass has poles near 1, so fp32 truncation skews the loudness).
+  const y = new Float64Array(x.length);
+  let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+  for (let n = 0; n < x.length; n++) {
+    const xn = x[n];
+    const yn = b[0] * xn + b[1] * x1 + b[2] * x2 - a[1] * y1 - a[2] * y2;
+    y[n] = yn; x2 = x1; x1 = xn; y2 = y1; y1 = yn;
+  }
+  return y;
+}
+
+export function integratedLoudness(wav, rate) {
+  let d = wav;
+  for (const f of KW_48K) d = lfilter(d, f.b, f.a);
+  const kernel = Math.round(0.4 * rate);     // 400 ms
+  const stride = Math.round(0.4 * rate * 0.25); // 75% overlap -> 100 ms
+  if (d.length < kernel) return null;        // too short to gate
+  // Match julius.core.unfold (used by audiotools): ceil frame count, last block
+  // zero-padded past the signal end.
+  const nf = Math.ceil((d.length - kernel) / stride) + 1;
+  const z = new Float64Array(nf), l = new Float64Array(nf);
+  for (let j = 0; j < nf; j++) {
+    let s = 0; const off = j * stride;
+    for (let i = 0; i < kernel; i++) { const idx = off + i; if (idx < d.length) { const v = d[idx]; s += v * v; } }
+    z[j] = s / kernel;
+    l[j] = -0.691 + 10 * Math.log10(z[j]);
+  }
+  const absKeep = [];
+  for (let j = 0; j < nf; j++) if (l[j] > -70.0) absKeep.push(j);
+  if (!absKeep.length) return null;
+  const zAbsMean = absKeep.reduce((acc, j) => acc + z[j], 0) / absKeep.length;
+  const gammaR = -0.691 + 10 * Math.log10(zAbsMean) - 10.0;
+  const relKeep = absKeep.filter((j) => l[j] > gammaR);
+  if (!relKeep.length) return null;
+  const zMean = relKeep.reduce((acc, j) => acc + z[j], 0) / relKeep.length;
+  return -0.691 + 10 * Math.log10(zMean);
+}
+
+// Normalize to target LUFS then ensure |peak| <= 1 (matches codec path).
+export function lufsNormalize(wav, rate, targetDb) {
+  const out = Float32Array.from(wav);
+  const lufs = integratedLoudness(out, rate);
+  if (lufs !== null && Number.isFinite(lufs)) {
+    const gain = Math.pow(10, (targetDb - lufs) / 20);
+    for (let i = 0; i < out.length; i++) out[i] *= gain;
+  }
+  let peak = 0;
+  for (let i = 0; i < out.length; i++) peak = Math.max(peak, Math.abs(out[i]));
+  if (peak > 1) { const g = 1 / peak; for (let i = 0; i < out.length; i++) out[i] *= g; }
+  return out;
+}
+
 export class IrodoriTTS {
   constructor({ ort, sessions, tokenizer }) {
     this.ort = ort;
@@ -102,10 +166,14 @@ export class IrodoriTTS {
   }
 
   // waveform (Float32, mono) -> reference latent (B=1,T,32). Pads to HOP multiple.
-  async wavToRefLatent(wav, sr, { ensureMax = true } = {}) {
+  // normalizeDb: target LUFS (default -16, matches the native codec). Pass null
+  // to skip loudness normalization and only peak-limit (ensureMax).
+  async wavToRefLatent(wav, sr, { normalizeDb = -16.0, ensureMax = true } = {}) {
     if (sr !== SR) throw new Error(`expected ${SR} Hz reference, got ${sr}`);
     let x = wav;
-    if (ensureMax) {
+    if (normalizeDb !== null && normalizeDb !== undefined) {
+      x = lufsNormalize(x, sr, normalizeDb); // includes peak-limit
+    } else if (ensureMax) {
       let peak = 0; for (let i = 0; i < x.length; i++) peak = Math.max(peak, Math.abs(x[i]));
       if (peak > 1) { x = Float32Array.from(x, (v) => v / peak); }
     }
