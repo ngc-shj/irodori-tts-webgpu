@@ -34,14 +34,15 @@ served from localhost (fp32). Pick a reference voice .wav, enter text, run.</p>
 <div class="row">
   <div><label for="steps">サンプリングステップ</label><input type="number" id="steps" value="16" min="4" max="60" /></div>
   <div><label for="seed">シード</label><input type="number" id="seed" value="0" /></div>
-  <div><label>精度</label>
-    <label style="font-weight:400"><input type="radio" name="prec" value="fp32" checked /> fp32</label>
-    <label style="font-weight:400"><input type="radio" name="prec" value="fp16" /> fp16</label>
+  <div><label>fp16 にするコンポーネント（既定は全て fp32）</label>
+    <label style="font-weight:400"><input type="checkbox" id="fp16-dit" /> DiT</label>
+    <label style="font-weight:400"><input type="checkbox" id="fp16-dac" /> decoder</label>
+    <label style="font-weight:400"><input type="checkbox" id="fp16-enc" /> encoder</label>
   </div>
 </div>
 
-<button id="run">生成</button>
-<button id="measure">計測 (DiT step + decode)</button>
+<button type="button" id="run">生成</button>
+<button type="button" id="measure">計測 (DiT step + decode)</button>
 <a id="dl">⬇ download .wav</a>
 <audio id="out" controls></audio>
 

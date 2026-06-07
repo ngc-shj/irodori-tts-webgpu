@@ -131,23 +131,23 @@ node tests/full_verify.mjs    # full chain vs PyTorch capture (corr 1.0)
 `loop_verify`/`full_verify` need `artifacts/ref/` from
 `export/capture_sampler.py` (a seeded PyTorch reference run).
 
-## fp16 (smaller / faster, for remote hosting)
+## fp16 (smaller / faster — but numerically UNSTABLE on WebGPU)
 
-fp32 is the default and is fine served from localhost. For remote/CDN hosting (or
-to halve GPU memory) generate fp16 models — these keep **fp32 inputs/outputs** so
-the JS runtime is unchanged; point `web/app.mjs`'s `ONNX` base at `artifacts/onnx_fp16`.
+fp32 is the default and the recommended mode: on an M3 Pro it already runs
+**faster than real-time** (RTF ≈ 0.85, 16 steps) and is lossless.
 
-```bash
-.venv/bin/python export/export_dit_fp16.py     # ~1.4GB -> ~0.7GB, fp32 IO / fp16 compute
-.venv/bin/python export/convert_fp16.py        # dacvae decoder + encoder fp16
-```
+fp16 (DiT/DAC) is **~1.5× faster** on WebGPU but currently **produces noise** in
+the browser. The headless `loop_fp16_check.mjs` reports corr 0.99999 only because
+**onnxruntime-node (CPU) has no fp16 kernels and silently upcasts to fp32** — so
+that check is NOT representative of the real fp16 GPU path. Generated artifacts
+exist for benchmarking via the UI's 計測 button (`export/export_dit_fp16.py`,
+`export/convert_fp16.py`), but for generation, **use fp32**.
 
-The DiT is exported directly from a `.half()` model (casting at the graph
-boundary) rather than via onnxconverter-common, which mis-handles the
-dynamo-inserted Cast nodes on the dynamic graph. fp16 is near-lossless here:
-end-to-end audio correlation vs the fp32 capture = **0.99999**
-(`node tests/loop_fp16_check.mjs`). The small encoders (text/speaker/duration)
-stay fp32 for now.
+Stabilizing fp16 needs mixed precision (keep the diffusion-sensitive ops —
+normalization, softmax, the timestep embedding, Snake/conv in the DAC decoder —
+in fp32, only the heavy matmuls in fp16). The browser UI exposes per-component
+fp16 checkboxes (DiT / decoder / encoder) to isolate which graph is unstable.
+The small encoders (text/speaker/duration) stay fp32.
 
 ## Known limitations / TODO
 
