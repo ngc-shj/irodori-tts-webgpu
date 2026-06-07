@@ -85,7 +85,7 @@ artifacts/   ONNX models + capture data (gitignored; generate via export/)
 ## Run the browser app (local macOS)
 
 ```bash
-python web/serve.py
+python3 web/serve.py    # stdlib only — no venv needed (macOS: use python3, not python)
 # open http://127.0.0.1:8137/web/  in a WebGPU browser (Chrome/Edge; Safari needs the flag)
 # pick a reference voice .wav, enter text, press 生成
 ```
@@ -125,12 +125,28 @@ node tests/full_verify.mjs    # full chain vs PyTorch capture (corr 1.0)
 `loop_verify`/`full_verify` need `artifacts/ref/` from
 `export/capture_sampler.py` (a seeded PyTorch reference run).
 
+## fp16 (smaller / faster, for remote hosting)
+
+fp32 is the default and is fine served from localhost. For remote/CDN hosting (or
+to halve GPU memory) generate fp16 models — these keep **fp32 inputs/outputs** so
+the JS runtime is unchanged; point `web/app.mjs`'s `ONNX` base at `artifacts/onnx_fp16`.
+
+```bash
+.venv/bin/python export/export_dit_fp16.py     # ~1.4GB -> ~0.7GB, fp32 IO / fp16 compute
+.venv/bin/python export/convert_fp16.py        # dacvae decoder + encoder fp16
+```
+
+The DiT is exported directly from a `.half()` model (casting at the graph
+boundary) rather than via onnxconverter-common, which mis-handles the
+dynamo-inserted Cast nodes on the dynamic graph. fp16 is near-lossless here:
+end-to-end audio correlation vs the fp32 capture = **0.99999**
+(`node tests/loop_fp16_check.mjs`). The small encoders (text/speaker/duration)
+stay fp32 for now.
+
 ## Known limitations / TODO
-- **fp16**: `dacvae_{decoder,encoder}` convert cleanly; the dynamic-shape DiT hits
-  an onnxconverter-common Cast error. fp32 is fine when served locally; fp16 (or
-  int8) matters for remote/CDN hosting.
 - **VoiceDesign (caption/emoji style)** and the no-ref path are not wired into the
   browser app yet (base 500M-v3 voice-clone only).
+- **fp16 encoders**: text/speaker/duration graphs are still fp32 (small; ~650 MB total).
 
 ## License
 Inference/runtime code here is MIT. Model weights and the Irodori-TTS architecture
