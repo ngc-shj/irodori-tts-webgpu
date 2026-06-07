@@ -131,23 +131,26 @@ node tests/full_verify.mjs    # full chain vs PyTorch capture (corr 1.0)
 `loop_verify`/`full_verify` need `artifacts/ref/` from
 `export/capture_sampler.py` (a seeded PyTorch reference run).
 
-## fp16 (smaller / faster — but numerically UNSTABLE on WebGPU)
+## fp16 — per component (measured on WebGPU, M3 Pro)
 
-fp32 is the default and the recommended mode: on an M3 Pro it already runs
-**faster than real-time** (RTF ≈ 0.85, 16 steps) and is lossless.
+fp16 is selected per component (UI checkboxes; `export/export_dit_fp16.py` +
+`export/convert_fp16.py`). Measured in-browser by isolating each:
 
-fp16 (DiT/DAC) is **~1.5× faster** on WebGPU but currently **produces noise** in
-the browser. The headless `loop_fp16_check.mjs` reports corr 0.99999 only because
-**onnxruntime-node (CPU) has no fp16 kernels and silently upcasts to fp32** — so
-that check is NOT representative of the real fp16 GPU path. Generated artifacts
-exist for benchmarking via the UI's 計測 button (`export/export_dit_fp16.py`,
-`export/convert_fp16.py`), but for generation, **use fp32**.
+| component | fp16 on WebGPU | speed vs fp32 |
+| --- | --- | --- |
+| **DiT** | ✅ stable | ~168 vs ~234 ms/step (**1.4×**) |
+| **encoder** | ✅ stable | negligible (runs once) |
+| **decoder** | ❌ **noise** — keep fp32 | (~470 vs ~997 ms) |
 
-Stabilizing fp16 needs mixed precision (keep the diffusion-sensitive ops —
-normalization, softmax, the timestep embedding, Snake/conv in the DAC decoder —
-in fp32, only the heavy matmuls in fp16). The browser UI exposes per-component
-fp16 checkboxes (DiT / decoder / encoder) to isolate which graph is unstable.
-The small encoders (text/speaker/duration) stay fp32.
+**Recommended: DiT + encoder fp16, decoder fp32** (the UI default). ~16 steps +
+fp32 decode ≈ 3.7 s for 5.6 s audio (RTF ≈ 0.66) vs all-fp32 ≈ 4.74 s (0.85) —
+both faster than real-time; full-fp16 (3.15 s) is unusable due to decoder noise.
+
+The DAC decoder breaks in fp16 (Snake activation `x + sin²(ax)/a` + large 1536-ch
+convs overflow/lose precision); stabilizing it would need mixed precision and it
+only runs once, so fp32 is the right call. The headless `loop_fp16_check.mjs`
+reported corr 0.99999 only because **onnxruntime-node (CPU) upcasts fp16→fp32** —
+not representative of the real GPU path; trust the in-browser 計測/生成 instead.
 
 ## Known limitations / TODO
 
