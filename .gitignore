@@ -1,0 +1,15 @@
+# Large/generated model artifacts — regenerate via export/ or fetch from HF Hub
+artifacts/
+
+# Node
+node_modules/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Misc
+outputs/
+*.wav
+.DS_Store

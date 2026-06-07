@@ -1,0 +1,18 @@
+# Curated deps for the ONNX export step (macOS CPU/MPS).
+# Deliberately excludes torchcodec / silentcipher / gradio (unneeded, and
+# torchcodec needs ffmpeg). The irodori_tts package itself is installed
+# separately with --no-deps (see setup_env.sh) so it does NOT drag those in.
+torch>=2.10,<2.11
+torchaudio>=2.10,<2.11
+transformers<5
+huggingface_hub
+sentencepiece
+numpy
+soundfile
+onnx
+onnxruntime
+onnxscript
+onnxconverter-common
+# dacvae pins protobuf 3.19 via tensorboard; setup_env.sh re-pins >=4.25 after,
+# which onnx requires. dacvae provides the codec (encoder/decoder) for export.
+dacvae @ git+https://github.com/facebookresearch/dacvae

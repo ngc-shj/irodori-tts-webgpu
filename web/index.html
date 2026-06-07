@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Irodori-TTS — WebGPU (local)</title>
+<style>
+  body { font: 14px/1.6 -apple-system, system-ui, sans-serif; margin: 2rem; max-width: 820px; }
+  h1 { font-size: 1.2rem; }
+  label { display: block; margin: .8rem 0 .2rem; font-weight: 600; }
+  textarea, input[type=number] { font: inherit; width: 100%; box-sizing: border-box; padding: .4rem; }
+  textarea { height: 4rem; }
+  .row { display: flex; gap: 1rem; }
+  .row > div { flex: 1; }
+  button { font-size: 1rem; padding: .5rem 1.2rem; cursor: pointer; margin-top: 1rem; }
+  #log { white-space: pre-wrap; background: #111; color: #b6f; padding: 1rem; border-radius: 8px;
+         margin-top: 1rem; min-height: 7rem; max-height: 22rem; overflow: auto; font-family: ui-monospace, monospace; }
+  .ok { color: #6f6; font-weight: 700; } .err { color: #f66; font-weight: 700; }
+  audio { display: none; margin-top: 1rem; width: 100%; }
+  a#dl { display: none; margin-left: 1rem; }
+</style>
+</head>
+<body>
+<h1>Irodori-TTS — WebGPU (local macOS)</h1>
+<p>Zero-shot voice cloning, fully in-browser on the Metal-backed GPU. Models are
+served from localhost (fp32). Pick a reference voice .wav, enter text, run.</p>
+
+<label for="text">テキスト</label>
+<textarea id="text">こんにちは、これは音声合成のテストです。</textarea>
+
+<label for="ref">参照音声 (.wav / 任意の音声ファイル)</label>
+<input type="file" id="ref" accept="audio/*" />
+
+<div class="row">
+  <div><label for="steps">サンプリングステップ</label><input type="number" id="steps" value="16" min="4" max="60" /></div>
+  <div><label for="seed">シード</label><input type="number" id="seed" value="0" /></div>
+</div>
+
+<button id="run">生成</button>
+<a id="dl">⬇ download .wav</a>
+<audio id="out" controls></audio>
+
+<div id="log">idle.</div>
+<script type="module" src="./app.mjs"></script>
+</body>
+</html>
