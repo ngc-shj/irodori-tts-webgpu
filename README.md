@@ -1,5 +1,7 @@
 # irodori-tts-webgpu
 
+English | [日本語](README.ja.md)
+
 Run [Irodori-TTS](https://github.com/Aratako/Irodori-TTS) (a Japanese flow-matching
 TTS with zero-shot voice cloning) **fully in the browser on WebGPU** — no server-side
 inference. The PyTorch model is exported to ONNX; the rectified-flow sampling loop,
@@ -101,12 +103,19 @@ cost; everything runs on the Metal-backed GPU.
 
 ## Regenerate artifacts (self-contained — no separate Irodori-TTS clone)
 
-`setup_env.sh` builds a local `.venv` with the curated deps and installs the
-`irodori_tts` package itself with `--no-deps` (so it does not drag in CUDA torch /
-torchcodec / silentcipher). Requires [`uv`](https://docs.astral.sh/uv/).
+`setup_env.sh` builds a local `.venv` with the curated deps and installs
+`irodori_tts`, `dacvae`, and `descript-audiotools` with `--no-deps` (so they do not
+drag in CUDA torch / torchcodec / silentcipher, nor the `tensorboard → protobuf<4`
+pin that would otherwise make the whole onnx/onnxscript install unsatisfiable).
+Requires [`uv`](https://docs.astral.sh/uv/). It prints the commands below on success.
 
 ```bash
-bash export/setup_env.sh        # .venv + deps + irodori_tts (--no-deps) + tokenizer/llmjp_tok
+bash export/setup_env.sh   # .venv + deps + tokenizer/llmjp_tok
+```
+
+### fp32 artifacts (required) → `artifacts/onnx/`
+
+```bash
 .venv/bin/python export/export_dacvae_decoder.py
 .venv/bin/python export/export_text_encoder.py
 .venv/bin/python export/export_dit.py
@@ -114,6 +123,20 @@ bash export/setup_env.sh        # .venv + deps + irodori_tts (--no-deps) + token
 # optional, for the parity capture used by tests/:
 .venv/bin/python export/golden.py --no-ref --out outputs/golden_noref   # a reference wav
 .venv/bin/python export/capture_sampler.py                              # -> artifacts/ref/
+```
+
+### fp16 artifacts (optional, faster in-browser) → `artifacts/onnx_fp16/`
+
+Each fp16 component has a dedicated step (see *fp16 — per component* below for the
+why). DiT and the decoder deliberately **do not** go through `convert_fp16.py`.
+
+```bash
+.venv/bin/python export/export_dit_fp16.py        # DiT — exported from a half() model
+.venv/bin/python export/convert_fp16.py           # dacvae encoder (post-hoc fp16)
+.venv/bin/python export/rewrite_convtranspose.py  # decoder: ConvTranspose -> Conv (-> dacvae_decoder_subpix.onnx)
+.venv/bin/python export/convert_fp16_decoder_mixed.py \
+    --in artifacts/onnx/dacvae_decoder_subpix.onnx \
+    --out artifacts/onnx_fp16/dacvae_decoder.onnx # decoder fp16 (Snake kept fp32)
 ```
 
 The export scripts import `irodori_tts` (the installed package) for the model
@@ -226,14 +249,8 @@ mathematically identical **sub-pixel (polyphase) form built from `Conv` only**
 `Cout·s` channels, shuffled to length `Lin·s` — verified exact vs the original
 (corr 1.0). The whole decoder is then `Conv`-only and runs fp16 cleanly.
 
-Regenerate (decoder pipeline — `convert_fp16.py` no longer touches the decoder):
-
-```bash
-.venv/bin/python export/rewrite_convtranspose.py          # -> dacvae_decoder_subpix.onnx
-.venv/bin/python export/convert_fp16_decoder_mixed.py \
-    --in artifacts/onnx/dacvae_decoder_subpix.onnx \
-    --out artifacts/onnx_fp16/dacvae_decoder.onnx        # Snake kept fp32 (insurance)
-```
+Regenerate it with the two decoder steps under *fp16 artifacts* in *Regenerate
+artifacts* above (`convert_fp16.py` no longer touches the decoder).
 
 > **Verification:** the rewrite is checked offline (two fp32 graphs, corr 1.0 —
 > CPU comparison is valid there). But **onnxruntime CPU upcasts fp16→fp32**, so it
