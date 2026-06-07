@@ -128,6 +128,7 @@ node tests/ort_test.mjs       # onnxruntime-node bit-exact vs Python ORT
 node tests/loop_verify.mjs    # RF loop + decode vs PyTorch capture (corr 1.0)
 node tests/full_verify.mjs    # full chain vs PyTorch capture (corr 1.0)
 ```
+
 `loop_verify`/`full_verify` need `artifacts/ref/` from
 `export/capture_sampler.py` (a seeded PyTorch reference run).
 
@@ -142,9 +143,12 @@ fp16 is selected per component (UI checkboxes; `export/export_dit_fp16.py` +
 | **encoder** | ✅ stable | negligible (runs once) |
 | **decoder** | ❌ **noise** — keep fp32 | (~470 vs ~997 ms) |
 
-**Recommended: DiT + encoder fp16, decoder fp32** (the UI default). ~16 steps +
-fp32 decode ≈ 3.7 s for 5.6 s audio (RTF ≈ 0.66) vs all-fp32 ≈ 4.74 s (0.85) —
-both faster than real-time; full-fp16 (3.15 s) is unusable due to decoder noise.
+**Recommended: DiT + encoder fp16, decoder fp32** (the UI default) — **audibly
+identical to fp32** (confirmed by listening) and ~1.25× faster: real generation
+≈ 2.4 s vs 3.0 s (fp32) for a 3.6 s clip, both faster than real-time. (The 計測
+estimate of RTF 0.66 is conservative — it times every step at batch=3 CFG, but
+the second half of the schedule runs batch=1.) Full-fp16 is unusable: the decoder
+produces noise.
 
 The DAC decoder breaks in fp16 (Snake activation `x + sin²(ax)/a` + large 1536-ch
 convs overflow/lose precision); stabilizing it would need mixed precision and it
