@@ -38,7 +38,17 @@ PY
 
 echo
 echo "Setup complete. Generate artifacts (from repo root):"
+echo
+echo "  # fp32 (required) -> artifacts/onnx/"
 echo "  .venv/bin/python export/export_dacvae_decoder.py"
 echo "  .venv/bin/python export/export_text_encoder.py"
 echo "  .venv/bin/python export/export_dit.py"
-echo "  .venv/bin/python export/export_rest.py"
+echo "  .venv/bin/python export/export_rest.py            # speaker, duration, dacvae encoder"
+echo
+echo "  # fp16 (optional, faster in-browser) -> artifacts/onnx_fp16/"
+echo "  .venv/bin/python export/export_dit_fp16.py        # DiT (special fp16 export)"
+echo "  .venv/bin/python export/convert_fp16.py           # dacvae encoder (+ others)"
+echo "  .venv/bin/python export/rewrite_convtranspose.py  # decoder: ConvTranspose -> Conv"
+echo "  .venv/bin/python export/convert_fp16_decoder_mixed.py \\"
+echo "      --in artifacts/onnx/dacvae_decoder_subpix.onnx \\"
+echo "      --out artifacts/onnx_fp16/dacvae_decoder.onnx  # decoder fp16 (Snake kept fp32)"

@@ -2,9 +2,11 @@
 """Convert exported fp32 ONNX models to fp16 (web-ready). Keeps IO types fp32
 so the JS runtime feeds/reads float32 while internal compute is fp16.
 
-The DACVAE decoder is excluded: ORT-web's WebGPU fp16 ConvTranspose kernel is
-broken (noise), so the decoder goes through rewrite_convtranspose.py (ConvTranspose
--> Conv) then convert_fp16_decoder_mixed.py instead."""
+Two models are excluded:
+- DiT: post-hoc fp16 here mis-handles the dynamo Cast nodes (val_53 type error);
+  use export_dit_fp16.py (exports from a half() model) instead.
+- DACVAE decoder: ORT-web's WebGPU fp16 ConvTranspose kernel is broken (noise);
+  use rewrite_convtranspose.py (ConvTranspose -> Conv) + convert_fp16_decoder_mixed.py."""
 from __future__ import annotations
 
 import os
@@ -13,7 +15,7 @@ from pathlib import Path
 import onnx
 from onnxconverter_common import float16
 
-MODELS = ["dacvae_encoder", "dit", "duration", "speaker_encoder", "text_encoder"]
+MODELS = ["dacvae_encoder", "duration", "speaker_encoder", "text_encoder"]
 
 
 def main() -> None:
