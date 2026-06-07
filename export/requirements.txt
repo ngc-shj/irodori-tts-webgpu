@@ -13,6 +13,9 @@ onnx
 onnxruntime
 onnxscript
 onnxconverter-common
-# dacvae pins protobuf 3.19 via tensorboard; setup_env.sh re-pins >=4.25 after,
-# which onnx requires. dacvae provides the codec (encoder/decoder) for export.
-dacvae @ git+https://github.com/facebookresearch/dacvae
+# NOTE: dacvae (the codec for export) is NOT listed here on purpose. Its dep chain
+# (descript-audiotools -> tensorboard) pins protobuf<4 / onnx<1.14, unsatisfiable
+# together with onnxscript (needs onnx>=1.16). uv resolves a requirements file
+# atomically, so listing dacvae here makes the WHOLE install fail and the venv ends
+# up empty. setup_env.sh installs dacvae + descript-audiotools with --no-deps and
+# supplies their runtime deps explicitly.

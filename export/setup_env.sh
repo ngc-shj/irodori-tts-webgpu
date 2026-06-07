@@ -6,10 +6,27 @@ set -euo pipefail
 cd "$(dirname "$0")/.."   # repo root
 
 uv venv --python 3.10 .venv
+
+# 1. The onnx/export stack + torch. Resolves cleanly only because dacvae and
+#    descript-audiotools are NOT in requirements.txt (their tensorboard ->
+#    protobuf<4 pin is unsatisfiable with onnx/onnxscript; see requirements.txt).
 uv pip install --python .venv -r export/requirements.txt
-# onnx needs protobuf>=4; dacvae's tensorboard pulls 3.19, so re-pin AFTER.
-uv pip install --python .venv "protobuf>=4.25"
-# the model definition only — without its CUDA/torchcodec/silentcipher deps.
+uv pip install --python .venv "protobuf>=4.25"   # onnx needs >=4
+
+# 2. Runtime deps of dacvae + descript-audiotools, installed normally. None of
+#    these pin protobuf, so they coexist with onnx; a recent tensorboard is
+#    protobuf>=4 compatible (unlike the old one descript-audiotools's metadata
+#    pins — which is why descript-audiotools itself goes in with --no-deps below).
+uv pip install --python .venv \
+  argbind einops numba \
+  flatten_dict julius librosa ffmpy importlib_resources \
+  rich markdown2 pyloudnorm randomname torch_stoi scipy tensorboard
+
+# 3. Model definitions + descript-audiotools, --no-deps — their dependency
+#    metadata pins protobuf<4 / onnx<1.14, which would break the resolve; the real
+#    runtime deps are supplied above. dacvae = the codec used for export.
+uv pip install --python .venv --no-deps "descript-audiotools>=0.7.2"
+uv pip install --python .venv --no-deps "git+https://github.com/facebookresearch/dacvae"
 uv pip install --python .venv --no-deps "git+https://github.com/Aratako/Irodori-TTS"
 
 # fast tokenizer.json for runtime/browser (llm-jp-3-150m has no tokenizer.json on the Hub).
