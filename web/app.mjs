@@ -98,7 +98,8 @@ async function timeRuns(fn, iters) {
   return (performance.now() - t0) / iters;
 }
 
-// Benchmark the DiT step (batch=3 CFG) + DAC decode at the selected precision.
+// Benchmark the DiT step (batch=3 CFG and batch=1) + DAC decode, then estimate
+// the real per-utterance time using rfLoop's actual batch=3/batch=1 step split.
 async function measure() {
   const btn = document.getElementById("measure");
   try {
@@ -112,19 +113,25 @@ async function measure() {
       text_state: T(rand(B * St * 512), [B, St, 512]), text_mask: T(ones(B * St), [B, St], "bool"),
       speaker_state: T(rand(B * Tsp * 768), [B, Tsp, 768]), speaker_mask: T(ones(B * Tsp), [B, Tsp], "bool"),
     });
-    log(`measuring DiT step (${label}, batch=3 CFG, S=${S})…`);
-    const cfgFeed = ditFeed(3);
-    const stepMs = await timeRuns(() => m.s.dit.run(cfgFeed), 10);
+    log(`measuring DiT step (${label}, batch=3 / batch=1, S=${S})…`);
+    const cfg3Ms = await timeRuns(() => m.s.dit.run(ditFeed(3)), 10);
+    const cfg1Ms = await timeRuns(() => m.s.dit.run(ditFeed(1)), 10);
     log(`measuring DAC decode (${label})…`);
     const z = T(rand(D * S), [1, D, S]);
     const decMs = await timeRuns(() => m.s.dac.run({ z }), 5);
     const audioSec = S * 1920 / 48000;
-    // Steps in the CFG window use batch=3; later steps batch=1 (~2x cheaper). Use
-    // the measured batch-3 step as a conservative upper bound for all steps.
-    const total = stepMs * steps + decMs;
-    log(`[${label}] DiT ${stepMs.toFixed(1)} ms/step · decode ${decMs.toFixed(0)} ms`, "ok");
-    log(`[${label}] ~${steps} steps + decode ≈ ${(total / 1000).toFixed(2)} s for ${audioSec.toFixed(2)} s audio `
-      + `(RTF ${(total / 1000 / audioSec).toFixed(2)}×)`, "ok");
+    // Mirror rfLoop's schedule: t_i = (1 - i/steps) * initScale; steps with
+    // t in [cfgMinT, cfgMaxT] run batch=3 (CFG), the rest batch=1.
+    const initScale = 0.999, cfgMinT = 0.5, cfgMaxT = 1.0;
+    let nCfg = 0;
+    for (let i = 0; i < steps; i++) {
+      const t = (1 - i / steps) * initScale;
+      if (t >= cfgMinT && t <= cfgMaxT) nCfg++;
+    }
+    const total = cfg3Ms * nCfg + cfg1Ms * (steps - nCfg) + decMs;
+    log(`[${label}] DiT batch=3 ${cfg3Ms.toFixed(1)} · batch=1 ${cfg1Ms.toFixed(1)} ms/step · decode ${decMs.toFixed(0)} ms`, "ok");
+    log(`[${label}] ${steps} steps (${nCfg}×b3 + ${steps - nCfg}×b1) + decode ≈ ${(total / 1000).toFixed(2)} s `
+      + `for ${audioSec.toFixed(2)} s audio (RTF ${(total / 1000 / audioSec).toFixed(2)}×)`, "ok");
   } catch (e) {
     log(`ERROR: ${e.message || e}`, "err"); console.error(e);
   } finally {

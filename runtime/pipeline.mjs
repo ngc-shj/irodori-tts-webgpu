@@ -222,6 +222,14 @@ export class IrodoriTTS {
     const tSched = new Float32Array(numSteps + 1);
     for (let i = 0; i <= numSteps; i++) tSched[i] = (1 - i / numSteps) * initScale;
 
+    // Conditioning is constant across every step, so build its tensors once and
+    // reuse them; only x_t and t change per step. Cuts per-step allocation and
+    // (on the WebGPU EP) the repeated upload of the largest inputs.
+    const textStateB3 = this._t(textB, [3, St, Dt]), textMaskB3 = this._t(textMB, [3, St], "bool");
+    const spkStateB3 = this._t(spkB, [3, Ts, Ds]), spkMaskB3 = this._t(spkMB, [3, Ts], "bool");
+    const textState1 = this._t(text.state, [1, St, Dt]), textMask1 = this._t(text.mask, [1, St], "bool");
+    const spkState1 = this._t(spk.state, [1, Ts, Ds]), spkMask1 = this._t(spk.mask, [1, Ts], "bool");
+
     for (let i = 0; i < numSteps; i++) {
       const t = tSched[i], dt = tSched[i + 1] - t;
       let v;
@@ -229,8 +237,8 @@ export class IrodoriTTS {
         const xc = new Float32Array(3 * SD); xc.set(xt, 0); xc.set(xt, SD); xc.set(xt, 2 * SD);
         const o = await this.s.dit.run({
           x_t: this._t(xc, [3, S, D]), t: this._t(new Float32Array([t, t, t]), [3]),
-          text_state: this._t(textB, [3, St, Dt]), text_mask: this._t(textMB, [3, St], "bool"),
-          speaker_state: this._t(spkB, [3, Ts, Ds]), speaker_mask: this._t(spkMB, [3, Ts], "bool"),
+          text_state: textStateB3, text_mask: textMaskB3,
+          speaker_state: spkStateB3, speaker_mask: spkMaskB3,
         });
         const v3 = o.v.data;
         v = new Float32Array(SD);
@@ -241,8 +249,8 @@ export class IrodoriTTS {
       } else {
         const o = await this.s.dit.run({
           x_t: this._t(xt, [1, S, D]), t: this._t(new Float32Array([t]), [1]),
-          text_state: this._t(text.state, [1, St, Dt]), text_mask: this._t(text.mask, [1, St], "bool"),
-          speaker_state: this._t(spk.state, [1, Ts, Ds]), speaker_mask: this._t(spk.mask, [1, Ts], "bool"),
+          text_state: textState1, text_mask: textMask1,
+          speaker_state: spkState1, speaker_mask: spkMask1,
         });
         v = o.v.data;
       }
