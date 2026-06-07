@@ -34,9 +34,9 @@ served from localhost (fp32). Pick a reference voice .wav, enter text, run.</p>
 <div class="row">
   <div><label for="steps">サンプリングステップ</label><input type="number" id="steps" value="16" min="4" max="60" /></div>
   <div><label for="seed">シード</label><input type="number" id="seed" value="0" /></div>
-  <div><label>fp16 にするコンポーネント（decoder は fp32 推奨）</label>
+  <div><label>fp16 にするコンポーネント</label>
     <label style="font-weight:400"><input type="checkbox" id="fp16-dit" checked /> DiT</label>
-    <label style="font-weight:400"><input type="checkbox" id="fp16-dac" /> decoder ⚠noise</label>
+    <label style="font-weight:400"><input type="checkbox" id="fp16-dac" checked /> decoder</label>
     <label style="font-weight:400"><input type="checkbox" id="fp16-enc" checked /> encoder</label>
   </div>
 </div>

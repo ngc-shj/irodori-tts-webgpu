@@ -5,7 +5,7 @@ artifacts/
 node_modules/
 
 # Python
-.venv/
+.venv*/
 __pycache__/
 *.pyc
 

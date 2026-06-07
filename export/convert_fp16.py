@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """Convert exported fp32 ONNX models to fp16 (web-ready). Keeps IO types fp32
-so the JS runtime feeds/reads float32 while internal compute is fp16."""
+so the JS runtime feeds/reads float32 while internal compute is fp16.
+
+The DACVAE decoder is excluded: ORT-web's WebGPU fp16 ConvTranspose kernel is
+broken (noise), so the decoder goes through rewrite_convtranspose.py (ConvTranspose
+-> Conv) then convert_fp16_decoder_mixed.py instead."""
 from __future__ import annotations
 
 import os
@@ -9,7 +13,7 @@ from pathlib import Path
 import onnx
 from onnxconverter_common import float16
 
-MODELS = ["dacvae_decoder", "dacvae_encoder", "dit", "duration", "speaker_encoder", "text_encoder"]
+MODELS = ["dacvae_encoder", "dit", "duration", "speaker_encoder", "text_encoder"]
 
 
 def main() -> None:

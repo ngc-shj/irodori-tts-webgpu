@@ -132,6 +132,63 @@ node tests/full_verify.mjs    # full chain vs PyTorch capture (corr 1.0)
 `loop_verify`/`full_verify` need `artifacts/ref/` from
 `export/capture_sampler.py` (a seeded PyTorch reference run).
 
+## Embed in your own app (git submodule)
+
+The inference core [`runtime/pipeline.mjs`](runtime/pipeline.mjs) is a single,
+dependency-free ES module: it imports nothing and you inject everything
+(`ort`, the created sessions, a tokenizer). That makes it easy to vendor as a
+submodule and drive from your own UI/server — `web/app.mjs` is just one such
+caller you can copy from.
+
+**1. Add the submodule** (pin it to a commit; the API is plain JS, no build step):
+
+```bash
+git submodule add https://github.com/ngc-shj/irodori-tts-webgpu vendor/irodori-tts-webgpu
+git -C vendor/irodori-tts-webgpu checkout <commit>     # pin
+# later: git submodule update --remote   # to advance the pin
+```
+
+**2. Provide the artifacts and tokenizer** — these are **not** in the repo
+(`artifacts/` is gitignored, ~0.65 GB fp16 / ~2.3 GB fp32). Generate them with
+`export/` (see *Regenerate artifacts* above) or host your own copy, then serve the
+six `*.onnx` (+ `*.onnx.data`) files and `tokenizer/llmjp_tok/` as static files.
+For fp16, the decoder **must** be the Conv-rewritten one — produce it with the
+two-step pipeline in the *Decoder fp16* section, not a naive `convert_fp16.py`.
+
+**3. Wire it up** (browser, WebGPU). The constructor takes `{ ort, sessions,
+tokenizer }`; `sessions` needs all six keys:
+
+```js
+import * as ort from "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.23.0/dist/ort.webgpu.mjs";
+import { AutoTokenizer, env } from "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.6";
+import { IrodoriTTS } from "./vendor/irodori-tts-webgpu/runtime/pipeline.mjs";
+
+ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.23.0/dist/";
+env.allowRemoteModels = false; env.allowLocalModels = true;
+env.localModelPath = "/tokenizer/";          // serves /tokenizer/llmjp_tok/*
+
+const base = "/models";                       // where you host the .onnx (+ .onnx.data)
+const names = { text:"text_encoder", speaker:"speaker_encoder", duration:"duration",
+                dit:"dit", dac:"dacvae_decoder", enc:"dacvae_encoder" };
+const opt = (n) => ({ executionProviders:["webgpu"], graphOptimizationLevel:"all",
+  externalData:[{ path:`${n}.onnx.data`, data:`${base}/${n}.onnx.data` }] });
+const sessions = {};
+for (const [k, n] of Object.entries(names))
+  sessions[k] = await ort.InferenceSession.create(`${base}/${n}.onnx`, opt(n));
+
+const tokenizer = await AutoTokenizer.from_pretrained("llmjp_tok");
+const tts = new IrodoriTTS({ ort, sessions, tokenizer });
+
+// refWav: Float32Array, mono, 48 kHz (resample yourself; see web/app.mjs fileToMono48k)
+const { audio, sampleRate, seqLen } = await tts.synthesize(text, refWav, 48000,
+  { numSteps: 16, seed: 0 });                 // audio: Float32Array @48 kHz
+```
+
+Mix fp16/fp32 by pointing `base` per-model at your fp16 vs fp32 folders (see
+`baseFor` in `web/app.mjs`). For **Node / headless**, the same code works with
+`onnxruntime-node` and `executionProviders:["cpu"]`. The module also re-exports
+`normalizeText`, `lufsNormalize`, and `integratedLoudness` if you need them.
+
 ## fp16 — per component (measured on WebGPU, M3 Pro)
 
 fp16 is selected per component (UI checkboxes; `export/export_dit_fp16.py` +
@@ -141,20 +198,46 @@ fp16 is selected per component (UI checkboxes; `export/export_dit_fp16.py` +
 | --- | --- | --- |
 | **DiT** | ✅ stable | ~168 vs ~234 ms/step (**1.4×**) |
 | **encoder** | ✅ stable | negligible (runs once) |
-| **decoder** | ❌ **noise** — keep fp32 | (~470 vs ~997 ms) |
+| **decoder** | ✅ stable (Conv-rewritten) | decode ~530 vs ~997 ms (**1.9×**) |
 
-**Recommended: DiT + encoder fp16, decoder fp32** (the UI default) — **audibly
-identical to fp32** (confirmed by listening) and ~1.25× faster: real generation
-≈ 2.4 s vs 3.0 s (fp32) for a 3.6 s clip, both faster than real-time. (The 計測
-estimate of RTF 0.66 is conservative — it times every step at batch=3 CFG, but
-the second half of the schedule runs batch=1.) Full-fp16 is unusable: the decoder
-produces noise.
+**Recommended: all three fp16** (the UI default) — **audibly identical to fp32**
+and faster: a 3.6 s clip generates in ~2.3 s (RTF 0.65×), well under real-time.
+(The 計測 estimate is conservative — it times every step at batch=3 CFG, but the
+second half of the schedule runs batch=1.)
 
-The DAC decoder breaks in fp16 (Snake activation `x + sin²(ax)/a` + large 1536-ch
-convs overflow/lose precision); stabilizing it would need mixed precision and it
-only runs once, so fp32 is the right call. The headless `loop_fp16_check.mjs`
-reported corr 0.99999 only because **onnxruntime-node (CPU) upcasts fp16→fp32** —
-not representative of the real GPU path; trust the in-browser 計測/生成 instead.
+### Decoder fp16 needed a ConvTranspose rewrite
+
+Naively converting the decoder to fp16 produces **noise on WebGPU** (CPU/fp32 are
+fine). It is **not** a numerical problem — the model is fp16-sound every way we
+emulated it offline (fp16 weights, fp16 activations, even fp16 in-conv
+accumulation: all corr ≈ 1.0; max intermediate magnitude ~13, nowhere near the
+65504 fp16 ceiling). The cause is **onnxruntime-web's WebGPU fp16 `ConvTranspose`
+kernel**, which is broken (its fp16 `Conv` is fine). Isolated by per-op mixed
+precision and matching public issues
+[microsoft/onnxruntime#26367](https://github.com/microsoft/onnxruntime/issues/26367)
+/ [#26732](https://github.com/microsoft/onnxruntime/issues/26732); still broken in
+ort-web 1.26.0. Since the decode cost is dominated by the upsampling
+ConvTranspose, simply keeping it fp32 gives no speedup.
+
+Fix: `export/rewrite_convtranspose.py` replaces the 4 ConvTranspose layers with a
+mathematically identical **sub-pixel (polyphase) form built from `Conv` only**
+(`Conv` → reshape/transpose/reshape pixel-shuffle). All four have the regular shape
+`kernel = 2·stride, pad = stride/2`, so each becomes a kernel-3 Conv emitting
+`Cout·s` channels, shuffled to length `Lin·s` — verified exact vs the original
+(corr 1.0). The whole decoder is then `Conv`-only and runs fp16 cleanly.
+
+Regenerate (decoder pipeline — `convert_fp16.py` no longer touches the decoder):
+
+```bash
+.venv/bin/python export/rewrite_convtranspose.py          # -> dacvae_decoder_subpix.onnx
+.venv/bin/python export/convert_fp16_decoder_mixed.py \
+    --in artifacts/onnx/dacvae_decoder_subpix.onnx \
+    --out artifacts/onnx_fp16/dacvae_decoder.onnx        # Snake kept fp32 (insurance)
+```
+
+> **Verification:** the rewrite is checked offline (two fp32 graphs, corr 1.0 —
+> CPU comparison is valid there). But **onnxruntime CPU upcasts fp16→fp32**, so it
+> cannot judge the WebGPU fp16 path; confirm fp16 audio in-browser (計測/生成).
 
 ## Known limitations / TODO
 
