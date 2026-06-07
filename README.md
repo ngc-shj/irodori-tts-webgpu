@@ -59,6 +59,7 @@ Only the **forward graphs** are ONNX (`artifacts/onnx/*.onnx`). All control flow
 `runtime/pipeline.mjs`, mirroring `irodori_tts/rf.py` + `inference_runtime.py`.
 
 ### Two blockers solved during export
+
 - **Complex RoPE** (`view_as_complex`) is not ONNX-exportable → replaced with a
   mathematically identical real-valued, fully-symbolic implementation
   (`export/rope_patch.py`), applied as a monkeypatch (upstream untouched).
@@ -89,6 +90,11 @@ python3 web/serve.py    # stdlib only — no venv needed (macOS: use python3, no
 # open http://127.0.0.1:8137/web/  in a WebGPU browser (Chrome/Edge; Safari needs the flag)
 # pick a reference voice .wav, enter text, press 生成
 ```
+
+The UI has an **fp32 / fp16** selector and a **計測 (Measure)** button that benchmarks
+the DiT step + DAC decode on the real WebGPU device and reports ms/step and the
+extrapolated real-time factor — switch precision and re-measure to compare.
+(fp16 needs the fp16 artifacts; see below.)
 
 Models are served from localhost (fp32, ~2.3 GB total) so there is no download
 cost; everything runs on the Metal-backed GPU.
@@ -144,10 +150,12 @@ end-to-end audio correlation vs the fp32 capture = **0.99999**
 stay fp32 for now.
 
 ## Known limitations / TODO
+
 - **VoiceDesign (caption/emoji style)** and the no-ref path are not wired into the
   browser app yet (base 500M-v3 voice-clone only).
 - **fp16 encoders**: text/speaker/duration graphs are still fp32 (small; ~650 MB total).
 
 ## License
+
 Inference/runtime code here is MIT. Model weights and the Irodori-TTS architecture
 are subject to their respective upstream licenses (Irodori-TTS, llm-jp-3, DACVAE).
