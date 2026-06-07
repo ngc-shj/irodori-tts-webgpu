@@ -164,5 +164,13 @@ not representative of the real GPU path; trust the in-browser 計測/生成 inst
 
 ## License
 
-Inference/runtime code here is MIT. Model weights and the Irodori-TTS architecture
-are subject to their respective upstream licenses (Irodori-TTS, llm-jp-3, DACVAE).
+Inference/runtime code in this repository is released under the [MIT License](./LICENSE).
+
+Model weights and the Irodori-TTS architecture are subject to their respective
+upstream licenses:
+
+| Component | Source | License |
+| --- | --- | --- |
+| Irodori-TTS (code + 500M-v3 weights) | [Aratako/Irodori-TTS](https://github.com/Aratako/Irodori-TTS) · [model card](https://huggingface.co/Aratako/Irodori-TTS-500M-v3) | MIT |
+| llm-jp-3-150m tokenizer | [llm-jp/llm-jp-3-150m](https://huggingface.co/llm-jp/llm-jp-3-150m) | Apache-2.0 |
+| DACVAE | [facebookresearch/dacvae](https://github.com/facebookresearch/dacvae) | Apache-2.0 |
