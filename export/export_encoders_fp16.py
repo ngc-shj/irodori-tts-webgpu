@@ -75,10 +75,17 @@ def _check(name, sess_path, feed, ref):
     got = sess.run(None, feed)[0]
     ref = ref if isinstance(ref, np.ndarray) else ref.detach().numpy()
     sz = sum(f.stat().st_size for f in Path(sess_path).parent.glob(Path(sess_path).name + "*")) / 1e6
-    print(f"[fp16] {name}: ORT loads OK (~{sz:.0f} MB)  max|Δ| vs torch-fp16 = {np.abs(ref-got).max():.3e}")
+    a, b = ref.reshape(-1), got.reshape(-1)
+    rms = float(np.sqrt((a ** 2).mean()))
+    cos = float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b) + 1e-12))
+    # abs |Δ| alone looks alarming; report it relative to the signal + cosine.
+    # (computed on the synthetic export inputs — indicative, not real-data parity.)
+    print(f"[fp16] {name}: ORT loads OK (~{sz:.0f} MB)  vs torch-fp16: "
+          f"max|Δ|/RMS={np.abs(a-b).max()/(rms+1e-12):.1%}  cosine={cos:.6f}")
 
 
 def main() -> None:
+    torch.manual_seed(0)  # reproducible parity numbers (inputs are synthetic)
     out_dir = Path("artifacts/onnx_fp16")
     out_dir.mkdir(parents=True, exist_ok=True)
     model, cfg = load_model()
