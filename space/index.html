@@ -19,6 +19,8 @@
   audio { display: none; margin-top: 1rem; width: 100%; }
   a#dl { display: none; margin-left: 1rem; }
   .note { color: #666; font-size: .9em; }
+  .warn { background: #fff3cd; color: #664d03; border: 1px solid #ffe69c;
+          padding: .5rem .8rem; border-radius: 6px; margin: .8rem 0; }
 </style>
 </head>
 <body>
@@ -27,7 +29,9 @@
 on WebGPU — no inference server. Text and reference audio never leave your device.
 Weights stream from the
 <a href="https://huggingface.co/noguchis/irodori-tts-onnx">model repo</a> on first run.</p>
-<p class="note">Requires a WebGPU browser (Chrome/Edge; Safari needs the flag). First load
+<p class="warn">⚠ <strong>Chrome 推奨。</strong>Edge ではこのページで生成が 2〜3 倍遅くなります
+（同じ GPU・同じモデルでも。Edge 側のスロットリングで回避不可）。快適に使うには Chrome をどうぞ。</p>
+<p class="note">Requires a WebGPU browser (Safari needs the flag). First load
 downloads the ONNX weights (~0.65 GB fp16 / ~2.3 GB fp32) and is cached by the browser.</p>
 
 <label for="text">テキスト</label>
