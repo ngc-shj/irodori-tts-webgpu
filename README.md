@@ -222,6 +222,11 @@ write your own loader, do the same — or serve the `*.onnx`/`*.onnx.data` with
 `Cache-Control: public, max-age=31536000, immutable` and content-hashed names.
 (localhost keeps `no-store` via `web/serve.py` so regenerated artifacts stay fresh.)
 
+**Browser note:** prefer **Chrome** for deployed pages. On the same M3 Pro, Chrome
+matches localhost (~0.5× RTF), but Edge's efficiency/throttling slowed the DiT
+sampling step ~2–3× on the hosted page (decode unaffected) — same GPU, same model.
+Edge users can disable efficiency mode if needed.
+
 ## fp16 — per component (measured on WebGPU, M3 Pro)
 
 fp16 is selected per component (UI checkboxes; `export/export_dit_fp16.py` +
