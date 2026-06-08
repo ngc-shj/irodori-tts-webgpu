@@ -17,16 +17,22 @@ const MODELS = {
   dit: "dit", dac: "dacvae_decoder", enc: "dacvae_encoder",
 };
 // Components with an fp16 variant (keyed by MODELS key).
-const FP16_KEYS = new Set(["dit", "dac", "enc"]);
+const FP16_KEYS = new Set(["dit", "dac", "enc", "text", "speaker", "duration"]);
 
-// Which components run fp16, read from the per-component checkboxes.
-const getFp16 = () => ({
-  dit: document.getElementById("fp16-dit").checked,
-  dac: document.getElementById("fp16-dac").checked,
-  enc: document.getElementById("fp16-enc").checked,
-});
+// Which components run fp16, read from the checkboxes. text/speaker/duration share
+// one "cond" toggle — fp16 only shrinks their download (~half), same speed.
+const getFp16 = () => {
+  const cond = document.getElementById("fp16-cond").checked;
+  return {
+    dit: document.getElementById("fp16-dit").checked,
+    dac: document.getElementById("fp16-dac").checked,
+    enc: document.getElementById("fp16-enc").checked,
+    text: cond, speaker: cond, duration: cond,
+  };
+};
 const fp16Label = (s) => {
   const on = ["dit", "dac", "enc"].filter((k) => s[k]);
+  if (s.text) on.push("cond");
   return on.length ? `fp16:${on.join("+")}` : "fp32";
 };
 const baseFor = (key, s) => (FP16_KEYS.has(key) && s[key]) ? "/artifacts/onnx_fp16" : "/artifacts/onnx";

@@ -126,10 +126,12 @@ bash export/setup_env.sh   # .venv + 依存 + tokenizer/llmjp_tok
 ### fp16 アーティファクト（任意・ブラウザで高速） → `artifacts/onnx_fp16/`
 
 fp16 は各コンポーネントごとに専用ステップで生成します（理由は下記 *fp16 — コンポーネント別*）。
-DiT とデコーダは意図的に `convert_fp16.py` を**通しません**。
+post-hoc な `convert_fp16.py` が通るのは dacvae_encoder のみ。DiT・条件エンコーダ・デコーダは
+それぞれ専用スクリプトが必要です。
 
 ```bash
 .venv/bin/python export/export_dit_fp16.py        # DiT — half() モデルから直接書き出し
+.venv/bin/python export/export_encoders_fp16.py   # text/speaker/duration — half() 方式（DL 約半分）
 .venv/bin/python export/convert_fp16.py           # dacvae encoder（事後 fp16 変換）
 .venv/bin/python export/rewrite_convtranspose.py  # decoder: ConvTranspose -> Conv (-> dacvae_decoder_subpix.onnx)
 .venv/bin/python export/convert_fp16_decoder_mixed.py \
@@ -217,10 +219,11 @@ fp16 はコンポーネント単位で選択します（UI チェックボック
 | コンポーネント | WebGPU での fp16 | fp32 比の速度 |
 | --- | --- | --- |
 | **DiT** | ✅ 安定 | ~168 vs ~234 ms/step（**1.4×**） |
-| **encoder** | ✅ 安定 | 無視できる（1回のみ実行） |
+| **encoder**（dacvae） | ✅ 安定 | 無視できる（1回のみ実行） |
 | **decoder** | ✅ 安定（Conv 書き換え済み） | decode ~530 vs ~997 ms（**1.9×**） |
+| **text/spk/dur** | ✅ 安定 | 速度差なし — **DL のみ削減**（~649 → ~328 MB） |
 
-**推奨: 3つすべて fp16**（UI 既定） — **fp32 と聴感上同一**かつ高速。3.6 秒のクリップを
+**推奨: すべて fp16**（UI 既定） — **fp32 と聴感上同一**かつ高速。3.6 秒のクリップを
 ~2.3 秒で生成（RTF 0.65×）でリアルタイムを十分下回ります。（計測の見積もりは保守的で、
 全 step を batch=3 CFG で計時しますが、スケジュール後半は batch=1 で走ります。）
 
@@ -255,7 +258,9 @@ reshape/transpose/reshape の pixel-shuffle）。4層すべてが `kernel = 2·s
 
 - **VoiceDesign（caption/emoji スタイル）** と no-ref 経路はブラウザアプリ未対応
   （ベース 500M-v3 の音声クローンのみ）。
-- **fp16 encoders**: text/speaker/duration グラフは依然 fp32（小さい。合計 ~650 MB）。
+- **fp16 条件エンコーダ**（text/speaker/duration）は `export_encoders_fp16.py` と
+  UI の *text/spk/dur* トグルで利用可。該当 DL を約半分に削減（~649 → ~328 MB）。
+  品質は不変だが速度向上はなし（1回のみ実行のため）。
 
 ## ライセンス
 

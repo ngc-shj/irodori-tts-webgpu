@@ -128,10 +128,12 @@ bash export/setup_env.sh   # .venv + deps + tokenizer/llmjp_tok
 ### fp16 artifacts (optional, faster in-browser) → `artifacts/onnx_fp16/`
 
 Each fp16 component has a dedicated step (see *fp16 — per component* below for the
-why). DiT and the decoder deliberately **do not** go through `convert_fp16.py`.
+why). Only `dacvae_encoder` survives a post-hoc `convert_fp16.py`; DiT, the
+conditioning encoders, and the decoder each need their own script.
 
 ```bash
 .venv/bin/python export/export_dit_fp16.py        # DiT — exported from a half() model
+.venv/bin/python export/export_encoders_fp16.py   # text/speaker/duration — half() model (~half the download)
 .venv/bin/python export/convert_fp16.py           # dacvae encoder (post-hoc fp16)
 .venv/bin/python export/rewrite_convtranspose.py  # decoder: ConvTranspose -> Conv (-> dacvae_decoder_subpix.onnx)
 .venv/bin/python export/convert_fp16_decoder_mixed.py \
@@ -220,10 +222,11 @@ fp16 is selected per component (UI checkboxes; `export/export_dit_fp16.py` +
 | component | fp16 on WebGPU | speed vs fp32 |
 | --- | --- | --- |
 | **DiT** | ✅ stable | ~168 vs ~234 ms/step (**1.4×**) |
-| **encoder** | ✅ stable | negligible (runs once) |
+| **encoder** (dacvae) | ✅ stable | negligible (runs once) |
 | **decoder** | ✅ stable (Conv-rewritten) | decode ~530 vs ~997 ms (**1.9×**) |
+| **text/spk/dur** | ✅ stable | none — **download only** (~649 → ~328 MB) |
 
-**Recommended: all three fp16** (the UI default) — **audibly identical to fp32**
+**Recommended: all fp16** (the UI default) — **audibly identical to fp32**
 and faster: a 3.6 s clip generates in ~2.3 s (RTF 0.65×), well under real-time.
 (The 計測 estimate is conservative — it times every step at batch=3 CFG, but the
 second half of the schedule runs batch=1.)
@@ -260,7 +263,9 @@ artifacts* above (`convert_fp16.py` no longer touches the decoder).
 
 - **VoiceDesign (caption/emoji style)** and the no-ref path are not wired into the
   browser app yet (base 500M-v3 voice-clone only).
-- **fp16 encoders**: text/speaker/duration graphs are still fp32 (small; ~650 MB total).
+- **fp16 conditioning encoders** (text/speaker/duration) are available via
+  `export_encoders_fp16.py` and the *text/spk/dur* UI toggle — they halve that
+  download (~649 → ~328 MB) with no quality change, but no speed gain (run once).
 
 ## License
 
