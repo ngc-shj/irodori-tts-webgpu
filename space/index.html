@@ -29,8 +29,9 @@
 on WebGPU — no inference server. Text and reference audio never leave your device.
 Weights stream from the
 <a href="https://huggingface.co/noguchis/irodori-tts-onnx">model repo</a> on first run.</p>
-<p class="warn">⚠ <strong>Chrome 推奨。</strong>Edge ではこのページで生成が 2〜3 倍遅くなります
-（同じ GPU・同じモデルでも。Edge 側のスロットリングで回避不可）。快適に使うには Chrome をどうぞ。</p>
+<p class="warn">⚠ <strong>Use Chrome.</strong> This hosted page runs ~2–3× slower in Edge
+(same GPU, same model — Edge throttling, not user-fixable). Chrome is fast (~0.5× RTF,
+faster than real-time).</p>
 <p class="note">Requires a WebGPU browser (Safari needs the flag). First load
 downloads the ONNX weights (~0.65 GB fp16 / ~2.3 GB fp32) and is cached by the browser.</p>
 
