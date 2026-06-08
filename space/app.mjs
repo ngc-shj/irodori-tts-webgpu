@@ -41,10 +41,35 @@ const fp16Label = (s) => {
 };
 const baseFor = (key, s) => (FP16_KEYS.has(key) && s[key]) ? `${MODEL_REPO}/onnx_fp16` : `${MODEL_REPO}/onnx`;
 
-const sessionOpt = (name, base) => ({
+// Persist the model files (~1.2 GB at fp16) in the Cache Storage API so returning
+// visitors download the set once instead of re-fetching 1+ GB from the model repo
+// every load. Skipped on localhost previews. Bump CACHE_NAME when artifacts change.
+const CACHE_NAME = "irodori-tts-models-v1";
+const onLocalhost = ["localhost", "127.0.0.1", ""].includes(location.hostname);
+const useModelCache = !onLocalhost && "caches" in globalThis;
+
+async function fetchModelFile(url) {
+  if (!useModelCache) return new Uint8Array(await (await fetch(url)).arrayBuffer());
+  const store = await caches.open(CACHE_NAME);
+  let res = await store.match(url);
+  if (!res) {
+    const net = await fetch(url);
+    if (!net.ok) throw new Error(`fetch ${url}: ${net.status}`);
+    await store.put(url, net.clone());
+    res = net;
+  }
+  return new Uint8Array(await res.arrayBuffer());
+}
+
+async function dropStaleModelCaches() {
+  for (const n of await caches.keys())
+    if (n.startsWith("irodori-tts-models-") && n !== CACHE_NAME) await caches.delete(n);
+}
+
+const sessionOpt = (name, data) => ({
   executionProviders: ["webgpu"],
   graphOptimizationLevel: "all",
-  externalData: [{ path: `${name}.onnx.data`, data: `${base}/${name}.onnx.data` }],
+  externalData: [{ path: `${name}.onnx.data`, data }],
 });
 
 const cache = new Map();        // fp16-combo label -> IrodoriTTS
@@ -60,12 +85,17 @@ async function loadModels(s) {
     log(`WebGPU adapter: ${a?.info?.vendor || "?"} / ${a?.info?.architecture || "?"}`);
     adapterLogged = true;
   }
-  log(`loading models (${key})… first load downloads weights from the model repo`);
+  if (useModelCache) await dropStaleModelCaches();
+  log(`loading models (${key})… ${useModelCache ? "cached after first load" : "downloading"} from the model repo`);
   const sessions = {};
   for (const [k, name] of Object.entries(MODELS)) {
     const base = baseFor(k, s);
     const t0 = performance.now();
-    sessions[k] = await ort.InferenceSession.create(`${base}/${name}.onnx`, sessionOpt(name, base));
+    const [model, data] = await Promise.all([
+      fetchModelFile(`${base}/${name}.onnx`),
+      fetchModelFile(`${base}/${name}.onnx.data`),
+    ]);
+    sessions[k] = await ort.InferenceSession.create(model, sessionOpt(name, data));
     log(`  ${name} [${base.split("/").pop()}] ${((performance.now() - t0) / 1000).toFixed(1)}s`);
   }
   if (!tokenizer) tokenizer = await AutoTokenizer.from_pretrained("llmjp_tok");
