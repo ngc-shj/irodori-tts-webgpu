@@ -268,8 +268,23 @@ reshape/transpose/reshape の pixel-shuffle）。4層すべてが `kernel = 2·s
 
 モデル重みと Irodori-TTS のアーキテクチャは、それぞれの upstream ライセンスに従います:
 
-| コンポーネント | 出典 | ライセンス |
-| --- | --- | --- |
-| Irodori-TTS（コード + 500M-v3 重み） | [Aratako/Irodori-TTS](https://github.com/Aratako/Irodori-TTS) · [model card](https://huggingface.co/Aratako/Irodori-TTS-500M-v3) | MIT |
-| llm-jp-3-150m tokenizer | [llm-jp/llm-jp-3-150m](https://huggingface.co/llm-jp/llm-jp-3-150m) | Apache-2.0 |
-| DACVAE | [facebookresearch/dacvae](https://github.com/facebookresearch/dacvae) | Apache-2.0 |
+| コンポーネント | ONNX ファイル | 出典 | ライセンス |
+| --- | --- | --- | --- |
+| Irodori-TTS（500M-v3 重み） | `dit`, `text_encoder`, `speaker_encoder`, `duration` | [Aratako/Irodori-TTS](https://github.com/Aratako/Irodori-TTS) · [model card](https://huggingface.co/Aratako/Irodori-TTS-500M-v3) | MIT |
+| Semantic-DACVAE（コーデック） | `dacvae_encoder`, `dacvae_decoder` | [Aratako/Semantic-DACVAE-Japanese-32dim](https://huggingface.co/Aratako/Semantic-DACVAE-Japanese-32dim)（[facebook/dacvae-watermarked](https://huggingface.co/facebook/dacvae-watermarked) 由来） | MIT |
+| llm-jp-3-150m tokenizer | `tokenizer/llmjp_tok/` | [llm-jp/llm-jp-3-150m](https://huggingface.co/llm-jp/llm-jp-3-150m) | Apache-2.0 |
+
+### ONNX アーティファクトの再配布
+
+エクスポートした `*.onnx` は重みの派生物です。upstream のライセンス（MIT /
+MIT / Apache-2.0）はいずれも再配布・商用利用を許可しているため、以下を満たせば
+（HF Hub などへの）再ホストが可能です:
+
+- upstream の MIT 著作権表示（Irodori-TTS, Semantic-DACVAE）と、llm-jp
+  tokenizer の Apache-2.0 ライセンス全文を同梱する;
+- 本リポジトリで加えた改変（PyTorch → ONNX 変換、fp16 変換、デコーダの
+  ConvTranspose → Conv 書き換え）を明記する — Apache-2.0 の要件。
+
+**倫理的利用**（Irodori-TTS モデルカードから継承）: 本人の明示的な同意なく
+他者の声をクローン/なりすますこと、ならびに誤認を狙ったディープフェイクや
+音声の生成を行わないこと。

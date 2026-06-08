@@ -274,8 +274,23 @@ Inference/runtime code in this repository is released under the [MIT License](./
 Model weights and the Irodori-TTS architecture are subject to their respective
 upstream licenses:
 
-| Component | Source | License |
-| --- | --- | --- |
-| Irodori-TTS (code + 500M-v3 weights) | [Aratako/Irodori-TTS](https://github.com/Aratako/Irodori-TTS) · [model card](https://huggingface.co/Aratako/Irodori-TTS-500M-v3) | MIT |
-| llm-jp-3-150m tokenizer | [llm-jp/llm-jp-3-150m](https://huggingface.co/llm-jp/llm-jp-3-150m) | Apache-2.0 |
-| DACVAE | [facebookresearch/dacvae](https://github.com/facebookresearch/dacvae) | Apache-2.0 |
+| Component | ONNX files | Source | License |
+| --- | --- | --- | --- |
+| Irodori-TTS (500M-v3 weights) | `dit`, `text_encoder`, `speaker_encoder`, `duration` | [Aratako/Irodori-TTS](https://github.com/Aratako/Irodori-TTS) · [model card](https://huggingface.co/Aratako/Irodori-TTS-500M-v3) | MIT |
+| Semantic-DACVAE (codec) | `dacvae_encoder`, `dacvae_decoder` | [Aratako/Semantic-DACVAE-Japanese-32dim](https://huggingface.co/Aratako/Semantic-DACVAE-Japanese-32dim) (derived from [facebook/dacvae-watermarked](https://huggingface.co/facebook/dacvae-watermarked)) | MIT |
+| llm-jp-3-150m tokenizer | `tokenizer/llmjp_tok/` | [llm-jp/llm-jp-3-150m](https://huggingface.co/llm-jp/llm-jp-3-150m) | Apache-2.0 |
+
+### Redistributing the ONNX artifacts
+
+The exported `*.onnx` files are derivative weights. All upstream licenses (MIT /
+MIT / Apache-2.0) permit redistribution and commercial use, so the artifacts may
+be re-hosted (e.g. on HF Hub) provided you:
+
+- include the upstream MIT copyright notices (Irodori-TTS, Semantic-DACVAE) and
+  the Apache-2.0 license text for the llm-jp tokenizer;
+- state the modifications made here (PyTorch → ONNX conversion, fp16 conversion,
+  and the decoder ConvTranspose → Conv rewrite) — required by Apache-2.0.
+
+**Ethical use** (carried over from the Irodori-TTS model card): do not use this
+model to clone or impersonate anyone's voice without their explicit consent, and
+do not generate deepfakes or speech intended to mislead.
