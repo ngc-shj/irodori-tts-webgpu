@@ -1,0 +1,26 @@
+Third-party model weights bundled in the ONNX artifacts
+=======================================================
+
+These ONNX files are derivative weights. Attribution and full license texts
+for each upstream source are provided in this directory.
+
+1. Irodori-TTS-500M-v3  (dit / text_encoder / speaker_encoder / duration)
+   https://huggingface.co/Aratako/Irodori-TTS-500M-v3
+   License: MIT — see Irodori-TTS-LICENSE
+
+2. Semantic-DACVAE-Japanese-32dim  (dacvae_encoder / dacvae_decoder)
+   https://huggingface.co/Aratako/Semantic-DACVAE-Japanese-32dim
+   License: MIT — see Semantic-DACVAE-LICENSE
+   Derived from facebook/dacvae-watermarked
+   (https://huggingface.co/facebook/dacvae-watermarked).
+
+3. llm-jp-3-150m tokenizer  (tokenizer/llmjp_tok/)
+   https://huggingface.co/llm-jp/llm-jp-3-150m
+   License: Apache-2.0 — see llm-jp-3-150m-LICENSE
+
+Modifications made to the upstream weights (per Apache-2.0 §4(b)):
+  - PyTorch -> ONNX export (dynamo, symbolic shapes)
+  - Complex RoPE replaced with a real-valued equivalent for ONNX export
+  - Data-dependent guards in the duration predictor bypassed at export
+  - fp16 conversion of all components
+  - Decoder ConvTranspose layers rewritten to a Conv-only sub-pixel form
