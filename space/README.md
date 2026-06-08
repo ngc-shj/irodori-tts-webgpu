@@ -25,10 +25,10 @@ text and reference audio never leave the device.
   (fp16 ~0.65 GB / fp32 ~2.3 GB), cached by the browser after first load.
 - **Source / export pipeline:**
   [ngc-shj/irodori-tts-webgpu](https://github.com/ngc-shj/irodori-tts-webgpu)
-- **Requires** a WebGPU browser. **Chrome recommended** (~0.5× RTF on an M3 Pro —
-  faster than real-time). Edge works but its efficiency/throttling can slow the
-  sampling step several-fold on this hosted page; if it feels slow, use Chrome or
-  turn off Edge's efficiency mode. Safari needs the WebGPU flag.
+- **Use Chrome** (~0.5× RTF on an M3 Pro — faster than real-time). Edge throttles
+  the sampling step ~2–3× on this hosted page and it does **not** clear by turning
+  off efficiency mode / flags — same GPU, same model, fine in Chrome. Safari needs
+  the WebGPU flag.
 
 ## Usage
 
