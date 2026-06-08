@@ -214,6 +214,14 @@ Mix fp16/fp32 by pointing `base` per-model at your fp16 vs fp32 folders (see
 `onnxruntime-node` and `executionProviders:["cpu"]`. The module also re-exports
 `normalizeText`, `lufsNormalize`, and `integratedLoudness` if you need them.
 
+**Cache the models when you deploy.** Re-fetching the ~1.2 GB (fp16) set on every
+visit is wasteful on a shared host (HF Spaces, etc.). `web/app.mjs` already stores
+each model file in the **Cache Storage API** on non-localhost origins, so a
+returning visitor downloads it once (bump `CACHE_NAME` when you re-export). If you
+write your own loader, do the same — or serve the `*.onnx`/`*.onnx.data` with
+`Cache-Control: public, max-age=31536000, immutable` and content-hashed names.
+(localhost keeps `no-store` via `web/serve.py` so regenerated artifacts stay fresh.)
+
 ## fp16 — per component (measured on WebGPU, M3 Pro)
 
 fp16 is selected per component (UI checkboxes; `export/export_dit_fp16.py` +
